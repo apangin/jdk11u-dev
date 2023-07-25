@@ -349,20 +349,23 @@ int NET_SocketClose(int fd) {
  * automatically if interrupted by signal (other than
  * our wakeup signal)
  */
-#define BLOCKING_IO_RETURN_INT(FD, FUNC) {      \
-    int ret;                                    \
-    threadEntry_t self;                         \
-    fdEntry_t *fdEntry = getFdEntry(FD);        \
-    if (fdEntry == NULL) {                      \
-        errno = EBADF;                          \
-        return -1;                              \
-    }                                           \
-    do {                                        \
-        startOp(fdEntry, &self);                \
-        ret = FUNC;                             \
-        endOp(fdEntry, &self);                  \
-    } while (ret == -1 && errno == EINTR);      \
-    return ret;                                 \
+#define BLOCKING_IO_RETURN_INT(FD, FUNC) \
+    BLOCKING_IO_RETURN_INT_LOOP(FD, FUNC, errno == EINTR)
+
+#define BLOCKING_IO_RETURN_INT_LOOP(FD, FUNC, COND) { \
+    int ret;                                          \
+    threadEntry_t self;                               \
+    fdEntry_t *fdEntry = getFdEntry(FD);              \
+    if (fdEntry == NULL) {                            \
+        errno = EBADF;                                \
+        return -1;                                    \
+    }                                                 \
+    do {                                              \
+        startOp(fdEntry, &self);                      \
+        ret = FUNC;                                   \
+        endOp(fdEntry, &self);                        \
+    } while (ret == -1 && (COND));                    \
+    return ret;                                       \
 }
 
 int NET_Read(int s, void* buf, size_t len) {
@@ -396,7 +399,8 @@ int NET_Connect(int s, struct sockaddr *addr, int addrlen) {
 }
 
 int NET_Poll(struct pollfd *ufds, unsigned int nfds, int timeout) {
-    BLOCKING_IO_RETURN_INT( ufds[0].fd, poll(ufds, nfds, timeout) );
+    // Do not restart automatically, since the timeout needs to be adjusted
+    BLOCKING_IO_RETURN_INT_LOOP( ufds[0].fd, poll(ufds, nfds, timeout), 0 );
 }
 
 /*

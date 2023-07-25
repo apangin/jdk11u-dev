@@ -81,7 +81,8 @@ int NET_Dup2(int fd, int fd2) {
 }
 
 int NET_Poll(struct pollfd *ufds, unsigned int nfds, int timeout) {
-    RESTARTABLE_RETURN_INT(poll(ufds, nfds, timeout));
+    // Do not restart automatically, since the timeout needs to be adjusted
+    return poll(ufds, nfds, timeout);
 }
 
 int NET_Timeout(JNIEnv *env, int s, long timeout, jlong nanoTimeStamp) {
